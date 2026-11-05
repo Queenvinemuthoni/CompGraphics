@@ -13,7 +13,6 @@ public:
     void rebuild(const VoxelWorld& world, const std::function<bool(int, int, int)>& skip);
     void drawOpaque() const { opaque_.draw(); }
     void drawWater() const { water_.draw(); }
-    int faceCount() const { return (opaque_.count() + water_.count()) / 6; }
 
 private:
     Mesh opaque_, water_;

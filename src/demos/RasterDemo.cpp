@@ -3,7 +3,8 @@
 #include "demos/Demos.h"
 #include "raster/Lines.h"
 #include "raster/Polygons.h"
-#include "scene/Preview3D.h"
+#include "anim/Animation.h"
+#include "scene/Renderer3D.h"
 
 namespace demo {
 
@@ -98,7 +99,20 @@ Canvas visualConcept() { return renderConcept(); }
 Canvas preview3D() {
     Canvas c = makePage("11  3D PREVIEW (TOWARDS CP2/CP3)", "PERSPECTIVE, Z-BUFFER, FACE CULLING, DIFFUSE LIGHT");
     Canvas view(780, 516, {30, 33, 44});
-    renderPreview3D(view);
+    // The first 3D test scene: a stone layer, a dirt ring around a pit, four grass corners.
+    VoxelWorld test(3, 3, 3);
+    for (int x = 0; x < 3; ++x)
+        for (int z = 0; z < 3; ++z) {
+            test.set(x, 0, z, Block::Stone);
+            if (x != 1 || z != 1) test.set(x, 1, z, Block::Dirt);
+            if (x != 1 && z != 1) test.set(x, 2, z, Block::Grass);
+        }
+    SoftRenderer r(view);
+    Vec3 eye{6.0f, 5.5f, 7.5f};
+    r.setCamera(Mat4::lookAt(eye, {1.5f, 1.2f, 1.5f}, {0, 1, 0}),
+                Mat4::perspective(radians(40), 780.0f / 516.0f, 0.1f, 100.0f), eye);
+    r.setLight(dayNight(0.15f).sunDir, 0.4f);
+    r.drawWorld(test);
     c.blit(view, 10, 76);
     drawRectOutline(c, {10, 76, 789, 591}, {58, 62, 80});
     return c;

@@ -44,10 +44,6 @@ void Canvas::fillRect(int x, int y, int w, int h, Color c) {
     for (int j = y; j < y + h; ++j) hline(x, x + w - 1, j, c);
 }
 
-void Canvas::verticalGradient(Color top, Color bottom) {
-    for (int y = 0; y < h_; ++y) hline(0, w_ - 1, y, lerpColor(top, bottom, float(y) / (h_ - 1)));
-}
-
 void Canvas::blit(const Canvas& src, int dx, int dy, const Color* transparent) {
     for (int y = 0; y < src.height(); ++y)
         for (int x = 0; x < src.width(); ++x) {

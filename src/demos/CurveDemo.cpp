@@ -24,7 +24,12 @@ Canvas curves() {
         {{12, 312}, {220, 170}, {520, 330}, {788, 228}}};
     const Color sky{180, 214, 242};
     for (int i = 0; i < 3; ++i) {
-        Polygon hill = sampleBezier(layers[i], 80);
+        Polygon hill;
+        if (layers[i].size() == 4)   // cubic: Bernstein polynomial form
+            for (int s = 0; s <= 80; ++s)
+                hill.push_back(cubicBezier(layers[i][0], layers[i][1], layers[i][2], layers[i][3], s / 80.0f));
+        else                         // any degree: de Casteljau
+            hill = sampleBezier(layers[i], 80);
         hill.push_back({800, 340});
         hill.push_back({0, 340});
         Color col = lerpColor({66, 150, 76}, sky, 0.55f - i * 0.27f);   // distant hills fade into the sky

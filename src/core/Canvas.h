@@ -36,7 +36,6 @@ public:
     void clear(Color c);
     void hline(int x0, int x1, int y, Color c);
     void fillRect(int x, int y, int w, int h, Color c);
-    void verticalGradient(Color top, Color bottom);
 
     // Block transfer (BitBlt). Pixels equal to *transparent are skipped (colour-key mask).
     void blit(const Canvas& src, int dx, int dy, const Color* transparent = nullptr);

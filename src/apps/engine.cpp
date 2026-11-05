@@ -13,7 +13,6 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <cmath>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -27,7 +26,6 @@
 #include "engine/Player.h"
 #include "engine/Raycast.h"
 #include "engine/WorldMesh.h"
-#include "raster/Lines.h"
 #include "scene/Voxel.h"
 #include "ui/Hud.h"
 

@@ -61,7 +61,7 @@ Building and editing 3D worlds is usually done in large engines that hide how pi
 | Colour theory | RGB ↔ HSV, shading by HSV value, additive (RGB) and subtractive (CMY) mixing | [ColorOps.cpp](src/color/ColorOps.cpp) | `07_colour_theory` |
 | Colour space reduction | Greyscale, uniform and popularity palettes, quantisation, ordered and Floyd–Steinberg dithering | [ColorOps.cpp](src/color/ColorOps.cpp) | `08_colour_reduction` |
 | Raster operations | REPLACE / XOR / AND / OR, BitBlt, colour-key transparency, sprite masking, bitmap font | [Canvas.cpp](src/core/Canvas.cpp), [Font.cpp](src/core/Font.cpp) | `09_raster_ops` |
-| Pipeline preview | Isometric and perspective projection, z-buffer, back/hidden-face culling | [Voxel.cpp](src/scene/Voxel.cpp), [Preview3D.cpp](src/scene/Preview3D.cpp) | `10`, `11` |
+| Pipeline preview | Isometric projection with painter's algorithm and hidden-face culling; perspective 3D preview | [Voxel.cpp](src/scene/Voxel.cpp), [Renderer3D.cpp](src/scene/Renderer3D.cpp) | `10`, `11` |
 
 ### Checkpoint 2 (pure C++)
 | Topic | Algorithm(s) | Code | Output |
@@ -133,7 +133,7 @@ src/
   apps/      renderer.cpp (CP1), animator.cpp (CP2), engine.cpp (CP3)
 assets/      texture.png (16x16 block detail texture)
 third_party/ stb_image.h
-outputs/     cp1/, cp2/, cp3/ screenshots (png/, gif/); phase*.ppm = earliest prototype renders
+outputs/     cp1/, cp2/, cp3/ screenshots (png/, gif/); progress/ = earliest prototype renders
 tools/       make_evidence.py, cp3_screenshots.sh
 docs/        CP1/CP2/CP3 evidence PDFs
 ```

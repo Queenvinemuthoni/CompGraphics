@@ -10,4 +10,3 @@
 // as upper-case. Each font pixel becomes a scale x scale square.
 void drawText(Canvas& canvas, int x, int y, const std::string& text, Color c, int scale = 2);
 int textWidth(const std::string& text, int scale = 2);
-int textHeight(int scale = 2);

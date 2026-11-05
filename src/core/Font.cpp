@@ -82,5 +82,3 @@ void drawText(Canvas& canvas, int x, int y, const std::string& text, Color c, in
 int textWidth(const std::string& text, int scale) {
     return text.empty() ? 0 : static_cast<int>(text.size()) * 6 * scale - scale;
 }
-
-int textHeight(int scale) { return 7 * scale; }
