@@ -203,11 +203,11 @@ Run from the project root:
 | Space | Jump (walk mode) / up (fly mode) |
 | Left Shift | Down (fly mode) |
 | F | Toggle walk / fly |
-| Left click / right click | Remove / place block |
+| R / P | Remove / place block (left / right click also work) |
 | 1–7 or mouse wheel | Choose block type |
 | T (hold) | Speed up time |
 | F5 / F9 | Save / load the world (`world.vxw`) |
-| R | Generate a fresh world |
+| N | Generate a fresh world |
 | Esc | Quit |
 
 The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N --screenshot FILE.ppm` to start at a given place and time or save a screenshot.

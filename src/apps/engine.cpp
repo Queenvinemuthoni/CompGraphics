@@ -84,27 +84,35 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     hudDirty = true;
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-    if (action != GLFW_PRESS) return;
+// Removes the block under the crosshair (R key or left click).
+void removeBlock() {
     RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
     if (!hit.hit) return;
+    Block old = world.get(hit.x, hit.y, hit.z);
+    world.set(hit.x, hit.y, hit.z, Block::Air);
+    blockAnims.push_back({hit.x, hit.y, hit.z, old, gameTime, false});
+    meshDirty = hudDirty = true;
+}
 
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        Block old = world.get(hit.x, hit.y, hit.z);
-        world.set(hit.x, hit.y, hit.z, Block::Air);
-        blockAnims.push_back({hit.x, hit.y, hit.z, old, gameTime, false});
-        meshDirty = hudDirty = true;
-    } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        int px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
-        bool inside = px >= 0 && py >= 0 && pz >= 0 && px < world.sizeX() && py < world.sizeY() && pz < world.sizeZ();
-        Block there = world.get(px, py, pz);
-        Block placing = HOTBAR_BLOCKS[selectedSlot];
-        if (!inside || (there != Block::Air && there != Block::Water)) return;
-        if (isOpaque(placing) && player.occupies(px, py, pz)) return;   // never place a block inside the player
-        world.set(px, py, pz, placing);
-        blockAnims.push_back({px, py, pz, placing, gameTime, true});
-        meshDirty = hudDirty = true;
-    }
+// Places the selected block against the face under the crosshair (P key or right click).
+void placeBlock() {
+    RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
+    if (!hit.hit) return;
+    int px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
+    bool inside = px >= 0 && py >= 0 && pz >= 0 && px < world.sizeX() && py < world.sizeY() && pz < world.sizeZ();
+    Block there = world.get(px, py, pz);
+    Block placing = HOTBAR_BLOCKS[selectedSlot];
+    if (!inside || (there != Block::Air && there != Block::Water)) return;
+    if (isOpaque(placing) && player.occupies(px, py, pz)) return;   // never place a block inside the player
+    world.set(px, py, pz, placing);
+    blockAnims.push_back({px, py, pz, placing, gameTime, true});
+    meshDirty = hudDirty = true;
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (action != GLFW_PRESS) return;
+    if (button == GLFW_MOUSE_BUTTON_LEFT) removeBlock();
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT) placeBlock();
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -122,7 +130,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (ok) { blockAnims.clear(); meshDirty = true; }
         showToast(ok ? "WORLD LOADED" : "NO SAVED WORLD");
     }
-    if (key == GLFW_KEY_R) {
+    if (key == GLFW_KEY_R) removeBlock();
+    if (key == GLFW_KEY_P) placeBlock();
+    if (key == GLFW_KEY_N) {
         world.clear(); world.generateTerrain(); blockAnims.clear(); meshDirty = true;
         showToast("NEW WORLD");
     }
@@ -282,7 +292,7 @@ void drawHud(HudOverlay& hud, float fps) {
     RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
     if (hit.hit)
         drawShadowText(c, 16, 70, std::string("LOOKING AT ") + blockName(world.get(hit.x, hit.y, hit.z)), {255, 230, 150});
-    drawShadowText(c, 16, 96, "WASD MOVE  MOUSE/ARROWS LOOK  SPACE JUMP  F FLY  T TIME  1-7/WHEEL BLOCK  F5 SAVE  F9 LOAD  R RESET",
+    drawShadowText(c, 16, 96, "WASD MOVE  MOUSE/ARROWS LOOK  R REMOVE  P PLACE  SPACE JUMP  F FLY  T TIME  1-7 BLOCK  F5 SAVE  F9 LOAD  N NEW",
                    {225, 230, 240}, 1);
     if (gameTime < toastUntil) {
         int w = textWidth(toast, 3);
