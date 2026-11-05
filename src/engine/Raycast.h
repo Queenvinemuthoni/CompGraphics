@@ -12,4 +12,5 @@ struct RayHit {
     float distance = 0;
 };
 
-RayHit raycastVoxels(const VoxelWorld& world, Vec3 origin, Vec3 direction, float maxDistance);
+// Water is passed through unless hitWater is true (used to scoop water up).
+RayHit raycastVoxels(const VoxelWorld& world, Vec3 origin, Vec3 direction, float maxDistance, bool hitWater = false);

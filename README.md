@@ -86,6 +86,7 @@ Building and editing 3D worlds is usually done in large engines that hide how pi
 | Picking | Amanatides–Woo voxel traversal: exact block and face under the crosshair | [Raycast.cpp](src/engine/Raycast.cpp) |
 | Player | Mouse look, walking with gravity, jumping, per-axis collision, fly mode | [Player.cpp](src/engine/Player.cpp) |
 | HUD | Drawn by the CP1 raster code into a `Canvas`, uploaded as a texture, magenta = transparent | [HudOverlay.cpp](src/engine/HudOverlay.cpp), [Hud.cpp](src/ui/Hud.cpp) |
+| Inventory | Each hotbar slot counts the blocks you hold: removing a block (or scooping water) adds one, placing uses one; empty slots are dimmed and show a red 0 | [engine.cpp](src/apps/engine.cpp), [Hud.cpp](src/ui/Hud.cpp) |
 | Block animation | Placed blocks pop in (`outBack` easing); removed blocks spin and shrink: `T · R · S` model matrix | [engine.cpp](src/apps/engine.cpp) |
 | Save / load | Binary world file | [Voxel.cpp](src/scene/Voxel.cpp) |
 
@@ -203,14 +204,14 @@ Run from the project root:
 | Space | Jump (walk mode) / up (fly mode) |
 | Left Shift | Down (fly mode) |
 | F | Toggle walk / fly |
-| R / P | Remove / place block (left / right click also work) |
+| R / P | Remove / place block (left / right click also work). Removing adds the block to your inventory; placing uses one |
 | 1–7 or mouse wheel | Choose block type |
 | T (hold) | Speed up time |
 | F5 / F9 | Save / load the world (`world.vxw`) |
 | N | Generate a fresh world |
 | Esc | Quit |
 
-The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N --screenshot FILE.ppm` to start at a given place and time or save a screenshot.
+The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N --dig N --screenshot FILE.ppm` to start at a given place and time or save a screenshot.
 
 ## 12. Current progress
 - **CP1:** all topics implemented in pure C++; 11 labelled images.
@@ -226,5 +227,6 @@ The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N 
 - The isometric renderer's painter's algorithm (sorted by `x + y + z`) is only correct for unit cubes on a grid.
 - The pure C++ 3D renderer uses flat shading and clips only against the near plane; triangles outside the screen are discarded per pixel.
 - The OpenGL prototype needs OpenGL 3.3. Under WSL it needs WSLg (Windows 11) to open a window.
+- The inventory starts empty and is not saved with the world (F5 saves blocks only).
 - Collision uses the player's bounding box against whole blocks, so there are no slopes or half blocks. Water does not flow.
 - PPM output cannot be previewed on Windows directly; use the PNG copies.

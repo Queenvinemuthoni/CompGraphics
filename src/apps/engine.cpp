@@ -7,8 +7,8 @@
 //   CP3  GPU meshes with hidden-face culling, transparent water, fog, sky
 //        shader with sun/moon/stars, voxel ray picking, walking + collision
 //
-// Usage: engine [--time T] [--pos X Y Z] [--look YAW PITCH] [--fly]
-//               [--screenshot FILE.ppm] [--frames N]
+// Usage: engine [--time T] [--pos X Y Z] [--look YAW PITCH] [--fly] [--slot N]
+//               [--dig N] [--screenshot FILE.ppm] [--frames N]
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -51,6 +51,7 @@ const float PLACE_TIME = 0.25f, REMOVE_TIME = 0.2f;
 // --- Global Player / Game State ---
 Player player;
 int selectedSlot = 0;
+int inventory[HOTBAR_SIZE] = {};   // blocks held per hotbar slot: removing adds one, placing uses one
 float timeOfDay = 0.12f;      // 0 = sunrise, 0.25 = noon, 0.5 = sunset
 float daySpeed = 1.0f / 240;  // one full day every 4 minutes
 float gameTime = 0.0f;
@@ -84,18 +85,30 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     hudDirty = true;
 }
 
-// Removes the block under the crosshair (R key or left click).
+int slotOf(Block b) {
+    for (int i = 0; i < HOTBAR_SIZE; ++i)
+        if (HOTBAR_BLOCKS[i] == b) return i;
+    return -1;
+}
+
+// Removes the block under the crosshair and adds it to the inventory (R key or left click).
 void removeBlock() {
-    RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
+    RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f, true);
     if (!hit.hit) return;
     Block old = world.get(hit.x, hit.y, hit.z);
     world.set(hit.x, hit.y, hit.z, Block::Air);
+    if (int slot = slotOf(old); slot >= 0) ++inventory[slot];
     blockAnims.push_back({hit.x, hit.y, hit.z, old, gameTime, false});
     meshDirty = hudDirty = true;
 }
 
-// Places the selected block against the face under the crosshair (P key or right click).
+// Places the selected block against the face under the crosshair, using one
+// from the inventory (P key or right click).
 void placeBlock() {
+    if (inventory[selectedSlot] <= 0) {
+        showToast(std::string("NO ") + blockName(HOTBAR_BLOCKS[selectedSlot]) + " LEFT");
+        return;
+    }
     RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
     if (!hit.hit) return;
     int px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
@@ -105,6 +118,7 @@ void placeBlock() {
     if (!inside || (there != Block::Air && there != Block::Water)) return;
     if (isOpaque(placing) && player.occupies(px, py, pz)) return;   // never place a block inside the player
     world.set(px, py, pz, placing);
+    --inventory[selectedSlot];
     blockAnims.push_back({px, py, pz, placing, gameTime, true});
     meshDirty = hudDirty = true;
 }
@@ -134,6 +148,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_P) placeBlock();
     if (key == GLFW_KEY_N) {
         world.clear(); world.generateTerrain(); blockAnims.clear(); meshDirty = true;
+        for (int& n : inventory) n = 0;
         showToast("NEW WORLD");
     }
 }
@@ -282,7 +297,7 @@ void drawHud(HudOverlay& hud, float fps) {
     hud.clear();
     const int W = c.width(), H = c.height();
     drawCrosshair(c, W / 2, H / 2);
-    drawHotbar(c, W / 2, H - 70, selectedSlot);
+    drawHotbar(c, W / 2, H - 70, selectedSlot, inventory);
     Vec3 f = player.forward();
     drawMinimap(c, world, W - 160, 20, 9, player.position.x, player.position.z, std::atan2(f.z, f.x), false);
 
@@ -316,7 +331,7 @@ bool saveScreenshot(const string& path, int w, int h) {
 
 int main(int argc, char** argv) {
     string screenshotPath;
-    int screenshotFrames = 10;
+    int screenshotFrames = 10, digCount = 0;
     for (int i = 1; i < argc; ++i) {
         string a = argv[i];
         if (a == "--time" && i + 1 < argc) timeOfDay = stof(argv[++i]);
@@ -326,6 +341,7 @@ int main(int argc, char** argv) {
         else if (a == "--slot" && i + 1 < argc) selectedSlot = stoi(argv[++i]) % HOTBAR_SIZE;
         else if (a == "--screenshot" && i + 1 < argc) screenshotPath = argv[++i];
         else if (a == "--frames" && i + 1 < argc) screenshotFrames = stoi(argv[++i]);
+        else if (a == "--dig" && i + 1 < argc) digCount = stoi(argv[++i]);   // remove N blocks at start (testing)
     }
     const bool capture = !screenshotPath.empty();
 
@@ -355,6 +371,8 @@ int main(int argc, char** argv) {
 
     // Init world: same generated terrain as the pure C++ renderers.
     world.generateTerrain();
+    for (int i = 0; i < digCount; ++i) removeBlock();
+    blockAnims.clear();
     WorldMesh mesh;
 
     // Compile Shaders

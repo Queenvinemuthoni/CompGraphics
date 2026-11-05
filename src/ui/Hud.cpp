@@ -42,7 +42,7 @@ Canvas makeBlockIcon(Block b, int size, Color key) {
     return icon;
 }
 
-void drawHotbar(Canvas& c, int centerX, int y, int selected) {
+void drawHotbar(Canvas& c, int centerX, int y, int selected, const int* counts) {
     const int slot = 46, gap = 6;
     const Color key{255, 0, 255};
     int x0 = centerX - (HOTBAR_SIZE * slot + (HOTBAR_SIZE - 1) * gap) / 2;
@@ -51,6 +51,12 @@ void drawHotbar(Canvas& c, int centerX, int y, int selected) {
         int x = x0 + i * (slot + gap);
         c.fillRect(x, y, slot, slot, {58, 62, 78});
         Canvas icon = makeBlockIcon(HOTBAR_BLOCKS[i], slot - 8, key);
+        bool empty = counts && counts[i] <= 0;
+        if (empty)   // dim the icon of an empty slot
+            for (int py = 0; py < icon.height(); ++py)
+                for (int px = 0; px < icon.width(); ++px)
+                    if (icon.getPixel(px, py) != key)
+                        icon.setPixel(px, py, lerpColor(icon.getPixel(px, py), {58, 62, 78}, 0.7f));
         c.blit(icon, x + 4, y + 4, &key);   // colour-key transparency
         Color frame = i == selected ? Color{255, 255, 255} : Color{96, 100, 120};
         drawRectOutline(c, {float(x), float(y), float(x + slot - 1), float(y + slot - 1)}, frame);
@@ -58,7 +64,11 @@ void drawHotbar(Canvas& c, int centerX, int y, int selected) {
             drawRectOutline(c, {float(x - 2), float(y - 2), float(x + slot + 1), float(y + slot + 1)}, frame);
             fillCircle(c, x + slot / 2, y + slot + 12, 3, frame);
         }
-        drawText(c, x + 3, y + 3, std::to_string(i + 1), {230, 230, 240}, 1);
+        if (counts) {   // item count in the bottom-right corner
+            std::string n = std::to_string(counts[i]);
+            drawShadowText(c, x + slot - 3 - textWidth(n), y + slot - 17, n,
+                           empty ? Color{235, 110, 110} : Color{255, 255, 255});
+        }
     }
     std::string name = blockName(HOTBAR_BLOCKS[selected]);
     drawShadowText(c, centerX - textWidth(name) / 2, y - 30, name, {255, 255, 255});

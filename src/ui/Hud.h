@@ -16,7 +16,9 @@ void drawSelection(Canvas& c, const IsoView& view, int x, int y, int z, Color co
 // Isometric block icon on a colour-key background (for BitBlt with transparency).
 Canvas makeBlockIcon(Block b, int size, Color key);
 // Seven slots with icons; the selected one is framed and named above the bar.
-void drawHotbar(Canvas& c, int centerX, int y, int selected);
+// If counts is given (one per slot), each slot shows how many blocks the player
+// holds and empty slots are dimmed.
+void drawHotbar(Canvas& c, int centerX, int y, int selected, const int* counts = nullptr);
 // Top-down map. (px, pz) is the player in block units; heading is the view
 // direction in map space (radians, 0 = +x, PI/2 = +z).
 void drawMinimap(Canvas& c, const VoxelWorld& world, int mx, int my, int cell, float px, float pz,

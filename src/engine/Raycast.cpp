@@ -3,7 +3,7 @@
 #include <cmath>
 #include <limits>
 
-RayHit raycastVoxels(const VoxelWorld& world, Vec3 o, Vec3 d, float maxDistance) {
+RayHit raycastVoxels(const VoxelWorld& world, Vec3 o, Vec3 d, float maxDistance, bool hitWater) {
     d = normalize(d);
     int x = int(std::floor(o.x)), y = int(std::floor(o.y)), z = int(std::floor(o.z));
     const int stepX = d.x > 0 ? 1 : -1, stepY = d.y > 0 ? 1 : -1, stepZ = d.z > 0 ? 1 : -1;
@@ -20,7 +20,7 @@ RayHit raycastVoxels(const VoxelWorld& world, Vec3 o, Vec3 d, float maxDistance)
     float t = 0;
     while (t <= maxDistance) {
         Block b = world.get(x, y, z);
-        if (b != Block::Air && b != Block::Water) {
+        if (b != Block::Air && (hitWater || b != Block::Water)) {
             hit.hit = true;
             hit.x = x; hit.y = y; hit.z = z;
             hit.distance = t;
