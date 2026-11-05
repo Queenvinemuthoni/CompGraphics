@@ -219,10 +219,6 @@ The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N 
   - same world, colours and HUD code as the pure C++ programs, and our own matrices
   - day/night lighting, sky with sun, moon and stars, transparent water and fog
   - exact block picking, walking with collision, fly mode, animated placing/removing, save/load
-- Bugs fixed along the way:
-  - the original 3D prototype positioned blocks after rotation and had a flipped Y axis
-  - the texture file was WebP with a `.png` name, so it never loaded; it is now a real PNG
-  - block picking stepped along the ray in fixed increments and could miss blocks; it now uses an exact grid traversal
 
 ## 13. Known limitations and issues
 - The world size is fixed (15 × 13 × 15). The whole mesh is rebuilt on every edit, which is fast at this size but would need chunking for large worlds.
