@@ -138,10 +138,54 @@ docs/        CP1/CP2/CP3 evidence PDFs
 ```
 
 ## 11. How to compile and run
-Everything is run from the project root. On Windows, use **WSL (Ubuntu)**:
-```bash
-sudo apt install g++ make libglfw3-dev libglew-dev    # once
+
+### Getting started from a fresh clone
+
+#### Windows laptop (using WSL)
+**1. Install WSL** (once). Open PowerShell **as Administrator**:
+```powershell
+wsl --install -d Ubuntu
 ```
+Restart when asked, then open **Ubuntu** from the Start menu and create a username and password.
+
+**2. Install the tools** (once), in the Ubuntu terminal:
+```bash
+sudo apt update
+sudo apt install -y git g++ make libglfw3-dev libglew-dev
+```
+
+**3. Clone the project:**
+```bash
+cd ~
+git clone https://github.com/Queenvinemuthoni/CompGraphics.git
+cd CompGraphics
+```
+
+**4. Run it:**
+```bash
+make play       # the OpenGL game (CP3)
+make run        # CP1 images  -> outputs/cp1/
+make animate    # CP2 images + animation frames -> outputs/cp2/
+```
+To open the output folder in Windows Explorer, type `explorer.exe .` in the Ubuntu terminal. Ready-made PNGs, GIFs and PDFs are already in the repository under `outputs/*/png`, `outputs/cp2/gif` and `docs/`.
+
+#### Linux laptop (Ubuntu or Debian)
+Follow steps 2–4 above (no WSL needed).
+
+#### Mac
+Not supported yet: macOS needs small changes to the OpenGL window setup and the Makefile.
+
+#### Troubleshooting
+| Problem | Fix |
+|---|---|
+| `make: command not found` or `g++: not found` | Step 2 was skipped |
+| `GL/glew.h: No such file` | `sudo apt install libglew-dev libglfw3-dev` |
+| "Failed to create window" | In PowerShell: `wsl --update`, then `wsl --shutdown`, and reopen Ubuntu (needs Windows 11, or Windows 10 build 19044 or later) |
+| Game runs slowly | WSL is drawing without the graphics card; updating the GPU driver on Windows usually helps |
+| Blocks have plain colours (no texture) | Run `make play` from the project folder, not from inside `bin/` |
+
+### All commands
+Run from the project root:
 
 | What | Command | Output |
 |---|---|---|
