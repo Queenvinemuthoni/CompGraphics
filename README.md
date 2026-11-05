@@ -154,7 +154,8 @@ sudo apt install g++ make libglfw3-dev libglew-dev    # once
 **Game controls:**
 | Key / mouse | Action |
 |---|---|
-| W A S D, mouse | Move, look around |
+| W A S D | Move |
+| Mouse or arrow keys | Look around (Left/Right turn, Up/Down tilt) |
 | Space | Jump (walk mode) / up (fly mode) |
 | Left Shift | Down (fly mode) |
 | F | Toggle walk / fly |

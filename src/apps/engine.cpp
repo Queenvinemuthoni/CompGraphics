@@ -142,6 +142,14 @@ void processInput(GLFWwindow *window, float dt) {
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) in.right -= 1;
     in.jump = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     in.down = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+    // Arrow keys look around as well as the mouse (degrees per second).
+    const float turnSpeed = 120.0f * dt;
+    float turn = 0, tilt = 0;
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) turn -= turnSpeed;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) turn += turnSpeed;
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) tilt += turnSpeed;
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) tilt -= turnSpeed;
+    if (turn != 0 || tilt != 0) { player.look(turn, tilt); hudDirty = true; }
     bool fastTime = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
     timeOfDay += dt * daySpeed * (fastTime ? 30.0f : 1.0f);
     player.update(world, in, dt);
@@ -274,7 +282,7 @@ void drawHud(HudOverlay& hud, float fps) {
     RayHit hit = raycastVoxels(world, player.eye(), player.forward(), 7.0f);
     if (hit.hit)
         drawShadowText(c, 16, 70, std::string("LOOKING AT ") + blockName(world.get(hit.x, hit.y, hit.z)), {255, 230, 150});
-    drawShadowText(c, 16, 96, "WASD MOVE  SPACE JUMP  F FLY  T TIME  1-7/WHEEL BLOCK  F5 SAVE  F9 LOAD  R RESET",
+    drawShadowText(c, 16, 96, "WASD MOVE  MOUSE/ARROWS LOOK  SPACE JUMP  F FLY  T TIME  1-7/WHEEL BLOCK  F5 SAVE  F9 LOAD  R RESET",
                    {225, 230, 240}, 1);
     if (gameTime < toastUntil) {
         int w = textWidth(toast, 3);
