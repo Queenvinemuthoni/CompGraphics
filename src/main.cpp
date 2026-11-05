@@ -1,215 +1,345 @@
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-#include <vector>
-#include <fstream>
 #include <cmath>
-#include <limits>
-#include <algorithm>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 using namespace std;
 
-// --- Data Structures ---
-struct Color { int r, g, b; };
-struct Vec3 { float x, y, z; };
-struct Point2D { int x, y; };
+// --- Global World Data ---
+const int WORLD_SIZE = 10;
+const int WORLD_HEIGHT = 4;
+int world[WORLD_SIZE][WORLD_HEIGHT][WORLD_SIZE];
 
-enum BlockType { AIR = 0, GRASS = 1, DIRT = 2, STONE = 3 };
+// --- Global Camera State ---
+glm::vec3 cameraPos   = glm::vec3(0.0f, 2.0f, 5.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
 
-Color getBlockColor(BlockType type) {
-    switch (type) {
-        case GRASS: return {70, 200, 70};
-        case DIRT:  return {139, 69, 19};
-        case STONE: return {150, 150, 150};
-        default:    return {0, 0, 0};
-    }
+float deltaTime = 0.0f, lastFrame = 0.0f; 
+bool firstMouse = true;
+float yaw = -90.0f, pitch = -20.0f;
+float lastX = 640.0f, lastY = 360.0f;
+
+// --- Input Callbacks ---
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (firstMouse) { lastX = xpos; lastY = ypos; firstMouse = false; }
+    float xoffset = (xpos - lastX) * 0.1f;
+    float yoffset = (lastY - ypos) * 0.1f; 
+    lastX = xpos; lastY = ypos;
+
+    yaw += xoffset; pitch += yoffset;
+    if (pitch > 89.0f) pitch = 89.0f;
+    if (pitch < -89.0f) pitch = -89.0f;
+
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.y = sin(glm::radians(pitch));
+    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(front);
 }
 
-// Struct to group triangles by face and define which direction that face points
-struct FaceDef {
-    int dirX, dirY, dirZ; // The neighbor coordinate offset in the 3D array
-    int t1[3];            // Triangle 1 indices
-    int t2[3];            // Triangle 2 indices
-};
-
-const float FOV_FACTOR = 400.0f;
-
-Point2D project3DTo2D(Vec3 point, int screenWidth, int screenHeight) {
-    Point2D projected;
-    float z = (point.z == 0.0f) ? 0.1f : point.z; 
-    projected.x = static_cast<int>((point.x * FOV_FACTOR) / z) + (screenWidth / 2);
-    projected.y = static_cast<int>((point.y * FOV_FACTOR) / z) + (screenHeight / 2);
-    return projected;
-}
-
-// 3D Transformations
-Vec3 translate3D(Vec3 p, float tx, float ty, float tz) { return {p.x + tx, p.y + ty, p.z + tz}; }
-Vec3 rotateY(Vec3 p, float angle) { float s = sin(angle), c = cos(angle); return {p.x * c + p.z * s, p.y, -p.x * s + p.z * c}; }
-Vec3 rotateX(Vec3 p, float angle) { float s = sin(angle), c = cos(angle); return {p.x, p.y * c - p.z * s, p.y * s + p.z * c}; }
-
-// Vector Math
-Vec3 sub(Vec3 a, Vec3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
-Vec3 crossProduct(Vec3 a, Vec3 b) { return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
-float dotProduct(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-Vec3 normalize(Vec3 v) { float len = sqrt(v.x * v.x + v.y * v.y + v.z * v.z); return len == 0 ? Vec3{0,0,0} : Vec3{v.x/len, v.y/len, v.z/len}; }
-
-// --- Graphics Engine ---
-class Canvas {
-private:
-    int width, height;
-    vector<Color> pixels;
-    vector<float> zBuffer;
-
-public:
-    Canvas(int w, int h) : width(w), height(h), pixels(w * h, {30, 30, 40}), zBuffer(w * h, numeric_limits<float>::max()) {}
-
-    void setPixel(int x, int y, float z, Color c) {
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            int index = y * width + x;
-            if (z < zBuffer[index]) {
-                zBuffer[index] = z;
-                pixels[index] = c;
-            }
-        }
-    }
-
-    float edgeFunction(const Point2D& a, const Point2D& b, const Point2D& c) {
-        return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
-    }
-
-    void drawTriangle(Point2D p0, float z0, Point2D p1, float z1, Point2D p2, float z2, Color c) {
-        int minX = max(0, min({p0.x, p1.x, p2.x}));
-        int maxX = min(width - 1, max({p0.x, p1.x, p2.x}));
-        int minY = max(0, min({p0.y, p1.y, p2.y}));
-        int maxY = min(height - 1, max({p0.y, p1.y, p2.y}));
-
-        float area = edgeFunction(p0, p1, p2);
-        if (area == 0) return;
-
-        for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                Point2D p = {x, y};
-                float w0 = edgeFunction(p1, p2, p), w1 = edgeFunction(p2, p0, p), w2 = edgeFunction(p0, p1, p);
-
-                if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
-                    w0 /= area; w1 /= area; w2 /= area;
-                    float z = w0 * z0 + w1 * z1 + w2 * z2;
-                    setPixel(x, y, z, c);
-                }
-            }
-        }
-    }
-
-    void save(const string& filename) {
-        ofstream out(filename);
-        out << "P3\n" << width << " " << height << "\n255\n";
-        for (const auto& p : pixels) out << p.r << " " << p.g << " " << p.b << "\n";
-        cout << "Final Render saved to " << filename << endl;
-    }
-};
-
-int main() {
-    int screenWidth = 800, screenHeight = 600;
-    Canvas canvas(screenWidth, screenHeight);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (action != GLFW_PRESS) return;
+    glm::vec3 ray = cameraPos, stepDir = cameraFront * 0.05f, prevRay = ray;
     
-    vector<Vec3> baseVoxel = {
-        {-1.0f, -1.0f, -1.0f}, { 1.0f, -1.0f, -1.0f}, { 1.0f,  1.0f, -1.0f}, {-1.0f,  1.0f, -1.0f},
-        {-1.0f, -1.0f,  1.0f}, { 1.0f, -1.0f,  1.0f}, { 1.0f,  1.0f,  1.0f}, {-1.0f,  1.0f,  1.0f} 
-    };
-
-    // Grouping the triangles into faces mapped to their grid directions
-    vector<FaceDef> voxelFaces = {
-        { 0,  0, -1, {0, 2, 1}, {0, 3, 2} }, // Front Face (Points to Z-1)
-        { 1,  0,  0, {1, 6, 5}, {1, 2, 6} }, // Right Face (Points to X+1)
-        { 0,  0,  1, {5, 7, 4}, {5, 6, 7} }, // Back Face (Points to Z+1)
-        {-1,  0,  0, {4, 3, 0}, {4, 7, 3} }, // Left Face (Points to X-1)
-        { 0,  1,  0, {3, 6, 2}, {3, 7, 6} }, // Top Face (Points to Y+1)
-        { 0, -1,  0, {4, 0, 1}, {4, 1, 5} }  // Bottom Face (Points to Y-1)
-    };
-
-    // Y is now correctly the first index for vertical stacking
-    BlockType world[3][3][3] = {
-        // y=0 (Bottom)
-        { {STONE, STONE, STONE}, {STONE, STONE, STONE}, {STONE, STONE, STONE} },
-        // y=1 (Middle)
-        { {DIRT, DIRT, DIRT}, {DIRT, AIR, DIRT}, {DIRT, DIRT, DIRT} },
-        // y=2 (Top)
-        { {GRASS, AIR, GRASS}, {AIR, AIR, AIR}, {GRASS, AIR, GRASS} }
-    };
-
-    Vec3 lightDir = normalize({-1.0f, -1.0f, 1.0f}); 
-    float cameraAngleY = 0.5f, cameraAngleX = 0.4f; 
-
-    // Loop through Y (height) first, then X and Z
-    for (int y = 0; y < 3; y++) {
-        for (int x = 0; x < 3; x++) {
-            for (int z = 0; z < 3; z++) {
-                
-                if (world[y][x][z] == AIR) continue;
-
-                Color baseColor = getBlockColor(world[y][x][z]);
-                float offsetX = (x - 1) * 2.0f;
-                float offsetY = -(y - 1) * 2.0f; 
-                float offsetZ = z * 2.0f + 7.0f;
-
-                // Loop through the 6 Faces of the cube
-                for (const auto& face : voxelFaces) {
-                    
-                    // OCCLUSION CULLING: Check the grid neighbor for this specific face
-                    int nx = x + face.dirX;
-                    int ny = y + face.dirY;
-                    int nz = z + face.dirZ;
-
-                    // Note the array lookup matches world[y][x][z]
-                    bool neighborIsSolid = (nx >= 0 && nx < 3 && ny >= 0 && ny < 3 && nz >= 0 && nz < 3) 
-                                           && (world[ny][nx][nz] != AIR);
-                    
-                    if (neighborIsSolid) continue; // Skip rendering this hidden face!
-
-                    // If the face is exposed, draw its two triangles
-                    const int* faceTriangles[2] = { face.t1, face.t2 };
-
-                    for (int i = 0; i < 2; i++) {
-                        Vec3 v0 = baseVoxel[faceTriangles[i][0]];
-                        Vec3 v1 = baseVoxel[faceTriangles[i][1]];
-                        Vec3 v2 = baseVoxel[faceTriangles[i][2]];
-
-                        v0 = translate3D(v0, offsetX, offsetY, 0.0f);
-                        v1 = translate3D(v1, offsetX, offsetY, 0.0f);
-                        v2 = translate3D(v2, offsetX, offsetY, 0.0f);
-
-                        v0 = rotateX(rotateY(v0, cameraAngleY), cameraAngleX);
-                        v1 = rotateX(rotateY(v1, cameraAngleY), cameraAngleX);
-                        v2 = rotateX(rotateY(v2, cameraAngleY), cameraAngleX);
-
-                        v0.z += offsetZ; v1.z += offsetZ; v2.z += offsetZ;
-
-                        Vec3 edge1 = sub(v1, v0);
-                        Vec3 edge2 = sub(v2, v0);
-                        Vec3 normal = normalize(crossProduct(edge1, edge2));
-
-                        Vec3 viewDir = sub({0.0f, 0.0f, 0.0f}, v0); 
-                        if (dotProduct(normal, viewDir) <= 0.0f) continue; // Backface culling
-
-                        Vec3 toLight = {-lightDir.x, -lightDir.y, -lightDir.z};
-                        float diffuse = max(0.0f, dotProduct(normal, toLight));
-                        float intensity = min(1.0f, 0.3f + diffuse);
-
-                        Color litColor = {
-                            static_cast<int>(baseColor.r * intensity),
-                            static_cast<int>(baseColor.g * intensity),
-                            static_cast<int>(baseColor.b * intensity)
-                        };
-
-                        Point2D p0 = project3DTo2D(v0, screenWidth, screenHeight);
-                        Point2D p1 = project3DTo2D(v1, screenWidth, screenHeight);
-                        Point2D p2 = project3DTo2D(v2, screenWidth, screenHeight);
-
-                        canvas.drawTriangle(p0, v0.z, p1, v1.z, p2, v2.z, litColor);
+    for (int i = 0; i < 160; i++) {
+        prevRay = ray; ray += stepDir;
+        int ax = std::round(ray.x) + 5, ay = std::round(ray.y), az = std::round(ray.z) + 5;
+        
+        if (ax >= 0 && ax < WORLD_SIZE && ay >= 0 && ay < WORLD_HEIGHT && az >= 0 && az < WORLD_SIZE) {
+            if (world[ax][ay][az] != 0) {
+                if (button == GLFW_MOUSE_BUTTON_LEFT) world[ax][ay][az] = 0; 
+                else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                    int px = std::round(prevRay.x) + 5, py = std::round(prevRay.y), pz = std::round(prevRay.z) + 5;
+                    if (px >= 0 && px < WORLD_SIZE && py >= 0 && py < WORLD_HEIGHT && pz >= 0 && pz < WORLD_SIZE) {
+                        if (!(px == std::round(cameraPos.x)+5 && py == std::round(cameraPos.y) && pz == std::round(cameraPos.z)+5))
+                            world[px][py][pz] = 1;
                     }
                 }
+                break;
             }
         }
     }
+}
 
-    canvas.save("../outputs/phase6_final_culled.ppm");
+void processInput(GLFWwindow *window) {
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
+    float cameraSpeed = 4.5f * deltaTime;
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cameraPos += cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cameraPos -= cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+}
+
+// --- 3D Shader Code ---
+const char* vertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+    layout (location = 1) in vec3 aNormal;
+    layout (location = 2) in vec2 aTexCoord;
+    
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec2 TexCoord;
+
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    
+    void main() {
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aNormal;  
+        TexCoord = aTexCoord;
+        gl_Position = projection * view * vec4(FragPos, 1.0);
+    }
+)";
+
+const char* fragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+    
+    in vec3 Normal;
+    in vec2 TexCoord;
+    
+    uniform sampler2D texture1;
+    uniform vec3 lightDir; 
+    
+    void main() {
+        float ambientStrength = 0.4;
+        vec3 ambient = ambientStrength * vec3(1.0, 1.0, 1.0);
+        
+        vec3 norm = normalize(Normal);
+        vec3 lightDirection = normalize(-lightDir);
+        float diff = max(dot(norm, lightDirection), 0.0);
+        vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);
+        
+        vec4 texColor = texture(texture1, TexCoord);
+        
+        vec3 result = (ambient + diffuse) * texColor.rgb;
+        FragColor = vec4(result, 1.0);
+    }
+)";
+
+// --- 2D UI Shader Code ---
+const char* uiVertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec2 aPos;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * vec4(aPos, 0.0, 1.0);
+    }
+)";
+
+const char* uiFragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+    void main() {
+        FragColor = vec4(1.0, 1.0, 1.0, 0.8);
+    }
+)";
+
+unsigned int compileShader(unsigned int type, const char* source) {
+    unsigned int id = glCreateShader(type);
+    glShaderSource(id, 1, &source, NULL);
+    glCompileShader(id);
+    return id;
+}
+
+int main() {
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Voxel World Builder", NULL, NULL);
+    glfwMakeContextCurrent(window);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback); 
+
+    glewExperimental = GL_TRUE;
+    glewInit();
+    glEnable(GL_DEPTH_TEST);
+
+    // Init world
+    for (int x = 0; x < WORLD_SIZE; x++)
+        for (int y = 0; y < WORLD_HEIGHT; y++)
+            for (int z = 0; z < WORLD_SIZE; z++)
+                world[x][y][z] = (y == 0) ? 1 : 0;
+
+    // Compile 3D Shaders
+    unsigned int vs = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    unsigned int fs = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vs); glAttachShader(shaderProgram, fs);
+    glLinkProgram(shaderProgram);
+    
+    // Link Texture Unit
+    glUseProgram(shaderProgram);
+    glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
+
+    // 3D Voxel Vertices (Pos, Normal, UV)
+    float vertices[] = {
+        // Back face
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
+         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
+        // Front face
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
+        // Left face
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        // Right face
+         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        // Bottom face
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+        // Top face
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f
+    };
+
+    unsigned int VBO, VAO;
+    glGenVertexArrays(1, &VAO); glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+   // --- Texture Loading ---
+    unsigned int texture1;
+    glGenTextures(1, &texture1);
+    glBindTexture(GL_TEXTURE_2D, texture1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true); 
+    unsigned char *data = stbi_load("texture.png", &width, &height, &nrChannels, 4);
+    if (data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    } else {
+        std::cout << "Failed to load texture. Reason: " << stbi_failure_reason() << std::endl;
+    }
+    stbi_image_free(data);
+
+    // --- 2D UI Setup (Crosshair) ---
+    unsigned int uiVS = compileShader(GL_VERTEX_SHADER, uiVertexShaderSource);
+    unsigned int uiFS = compileShader(GL_FRAGMENT_SHADER, uiFragmentShaderSource);
+    unsigned int uiShaderProgram = glCreateProgram();
+    glAttachShader(uiShaderProgram, uiVS); glAttachShader(uiShaderProgram, uiFS);
+    glLinkProgram(uiShaderProgram);
+
+    float crosshairVertices[] = {
+        -15.0f,   0.0f,
+         15.0f,   0.0f,
+          0.0f, -15.0f,
+          0.0f,  15.0f 
+    };
+
+    unsigned int crosshairVAO, crosshairVBO;
+    glGenVertexArrays(1, &crosshairVAO);
+    glGenBuffers(1, &crosshairVBO);
+    glBindVertexArray(crosshairVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, crosshairVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(crosshairVertices), crosshairVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // --- Render Loop ---
+    while (!glfwWindowShouldClose(window)) {
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        processInput(window);
+
+        glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // --- 1. Draw 3D World ---
+        glUseProgram(shaderProgram);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
+        
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniform3f(glGetUniformLocation(shaderProgram, "lightDir"), -0.2f, -1.0f, -0.3f); 
+
+        glBindVertexArray(VAO);
+
+        for(int x = 0; x < WORLD_SIZE; x++) {
+            for (int y = 0; y < WORLD_HEIGHT; y++) {
+                for(int z = 0; z < WORLD_SIZE; z++) {
+                    if (world[x][y][z] == 0) continue; 
+
+                    glm::mat4 model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3((x - 5) * 1.0f, y * 1.0f, (z - 5) * 1.0f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
+                }
+            }
+        }
+
+        // --- 2. Draw 2D UI Crosshair ---
+        glDisable(GL_DEPTH_TEST);
+        glUseProgram(uiShaderProgram);
+
+        glm::mat4 uiProjection = glm::ortho(-640.0f, 640.0f, -360.0f, 360.0f);
+        glUniformMatrix4fv(glGetUniformLocation(uiShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(uiProjection));
+
+        glBindVertexArray(crosshairVAO);
+        glDrawArrays(GL_LINES, 0, 4); 
+
+        glEnable(GL_DEPTH_TEST); 
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
     return 0;
 }
