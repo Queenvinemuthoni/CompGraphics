@@ -204,7 +204,7 @@ Run from the project root:
 | Space | Jump (walk mode) / up (fly mode) |
 | Left Shift | Down (fly mode) |
 | F | Toggle walk / fly |
-| R / P | Remove / place block (left / right click also work). Removing adds the block to your inventory; placing uses one |
+| R / P | Remove / place block (left / right click also work). You start with 10 of each block; removing adds one to your inventory, placing uses one |
 | 1–7 or mouse wheel | Choose block type |
 | T (hold) | Speed up time |
 | F5 / F9 | Save / load the world (`world.vxw`) |
@@ -227,6 +227,6 @@ The engine also accepts `--time 0.5 --pos X Y Z --look YAW PITCH --fly --slot N 
 - The isometric renderer's painter's algorithm (sorted by `x + y + z`) is only correct for unit cubes on a grid.
 - The pure C++ 3D renderer uses flat shading and clips only against the near plane; triangles outside the screen are discarded per pixel.
 - The OpenGL prototype needs OpenGL 3.3. Under WSL it needs WSLg (Windows 11) to open a window.
-- The inventory starts empty and is not saved with the world (F5 saves blocks only).
+- The inventory starts with 10 of every block and is not saved with the world (F5 saves blocks only).
 - Collision uses the player's bounding box against whole blocks, so there are no slopes or half blocks. Water does not flow.
 - PPM output cannot be previewed on Windows directly; use the PNG copies.

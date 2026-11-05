@@ -51,7 +51,10 @@ const float PLACE_TIME = 0.25f, REMOVE_TIME = 0.2f;
 // --- Global Player / Game State ---
 Player player;
 int selectedSlot = 0;
-int inventory[HOTBAR_SIZE] = {};   // blocks held per hotbar slot: removing adds one, placing uses one
+// Blocks held per hotbar slot: removing adds one, placing uses one.
+const int START_ITEMS = 10;
+int inventory[HOTBAR_SIZE] = {START_ITEMS, START_ITEMS, START_ITEMS, START_ITEMS,
+                              START_ITEMS, START_ITEMS, START_ITEMS};
 float timeOfDay = 0.12f;      // 0 = sunrise, 0.25 = noon, 0.5 = sunset
 float daySpeed = 1.0f / 240;  // one full day every 4 minutes
 float gameTime = 0.0f;
@@ -148,7 +151,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_P) placeBlock();
     if (key == GLFW_KEY_N) {
         world.clear(); world.generateTerrain(); blockAnims.clear(); meshDirty = true;
-        for (int& n : inventory) n = 0;
+        for (int& n : inventory) n = START_ITEMS;
         showToast("NEW WORLD");
     }
 }
